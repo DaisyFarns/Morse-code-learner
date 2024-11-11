@@ -4,10 +4,11 @@ Date    : 2023
 Licence : MIT
 """
 
-
 import threading
 import time
 import random
+import argparse
+import sys
 
 from threading import Thread
 
@@ -335,11 +336,14 @@ class LettersLearned(pygame.sprite.Sprite):
     font_colour_normal = (255, 255, 255)
     font_colour_new_letter = (0, 255, 0)
 
-    def __init__(self, window_width):
+    def __init__(self, window_width, letters_to_learn: int | None = None):
         """
         Sets up the font object that will be used to render the text
         """
         super().__init__()
+
+        if letters_to_learn is None:
+            letters_to_learn = len(morse)
 
         self.width = window_width
         self.surf = pygame.Surface((window_width, self.height))
@@ -353,7 +357,7 @@ class LettersLearned(pygame.sprite.Sprite):
         self.learned_letters: list[str] = []
 
         # Number on characters to learn
-        self.letters_to_learn_count = len(morse)
+        self.letters_to_learn_count = letters_to_learn
 
         self.top_text_center = self.spacing + int(round(self.font_size / 2))
         self.bottom_text_center = self.height - int(self.spacing + round(self.font_size) / 2)
@@ -405,7 +409,7 @@ class LettersLearned(pygame.sprite.Sprite):
         :return: None
         """
 
-        text_count = f"Letters learned {len(self.learned_letters)}/{len(morse.keys())}"
+        text_count = f"Letters learned {len(self.learned_letters)}/{self.letters_to_learn_count}"
         text_line_one = " ".join(self.learned_letters[:self.letters_per_line])
         text_line_two = " ".join(self.learned_letters[self.letters_per_line:])
 
@@ -491,7 +495,13 @@ class MorseTrainer:
 
     paused_text_distance_from_bottom = 30
 
+    # Number of random characters to train. If None, pick all of them
+    rand_characters_number = None
+
+
     def __init__(self):
+        self.process_args()
+
         # Pygame initialisation
         pygame.init()
         pygame.mixer.init()
@@ -500,7 +510,7 @@ class MorseTrainer:
         self.screen = pygame.display.set_mode(size=(self.window_width, self.window_height))
         self.box = Box()
         self.box_thread: Thread | None = None
-        self.letters_learned = LettersLearned(self.window_width)
+        self.letters_learned = LettersLearned(self.window_width, self.rand_characters_number)
 
         self.need_new_character = False
         self.correct_char = ""
@@ -517,6 +527,10 @@ class MorseTrainer:
         self.paused_font = pygame.font.SysFont(font_name, size=30)
 
         self.paused_text = self.get_paused_text("")
+
+        # Handles of running threads.
+        self.running_threads: list[Thread] = []
+        
 
     def get_paused_text(self, text) -> pygame.Surface:
         """
@@ -537,8 +551,21 @@ class MorseTrainer:
         them.
 
         Also set's up the main character queue
+
+        @param: rand_character_number: number of randomly selected
+        characters in queue. A-Z and 0-9 by default
         """
+
         characters = list(morse.keys())
+
+        if self.rand_characters_number is not None:
+            if self.rand_characters_number > len(characters) or self.rand_characters_number <= 0:
+                sys.exit(f"Number of characters must be between 1 and {len(characters)}, not {self.rand_characters_number}!")
+
+        # Randomly pick characters
+        if self.rand_characters_number is not None:
+            characters = random.sample(characters, k=self.rand_characters_number)
+
         self.back_character_queue = []
 
         letters = [c for c in characters if c.isalpha()]
@@ -586,6 +613,7 @@ class MorseTrainer:
             self.box_thread = Thread(target=target)
 
         self.box_thread.start()
+        self.running_threads.append(self.box_thread)
 
     def add_character_to_main_queue(self):
         """
@@ -650,7 +678,19 @@ class MorseTrainer:
             new_item_index = self.new_indices[new_item[1]]
             self.main_character_queue.insert(new_item_index, new_item)
         else:
-            Thread(target=self.letters_learned.update, args=(item[0],)).start()
+            letters_learned_thread = Thread(
+                target=self.letters_learned.update,
+                args=(item[0],)
+            )
+
+            letters_learned_thread.start()
+            self.running_threads.append(letters_learned_thread)
+    
+    def filter_threads():
+        """
+        Filter the running threads
+        """
+
 
     def pause(self):
         """
@@ -706,13 +746,30 @@ class MorseTrainer:
         self.screen.blit(source=self.paused_text, dest=paused_location)
 
         pygame.display.flip()
+    
+    def process_args(self):
+        """
+        Parses command line arguments for the game
+        """
 
-    def start(self):
+        parser = argparse.ArgumentParser(
+            description="Program to help train you to listen to morse code"
+        )
+
+        parser.add_argument(
+            "-r", "--random",
+            required=False,
+            type=int,
+            help="Number of random characters to train. Default is all A-Z and 0-9"
+        )
+
+        args = parser.parse_args()
+        self.rand_characters_number = args.random
+
+    def start(self, rand_characters_number=None):
         """
         Main game loop
         """
-
-        time.sleep(0.5)
 
         self.need_new_character = True
 
@@ -787,6 +844,12 @@ class MorseTrainer:
                     pygame.quit()
                     print("Quit")
                     return
+    
+    def quit():
+        """
+        Quits the game
+        """
+        raise NotImplementedError()
 
     def debug(self):
         """
