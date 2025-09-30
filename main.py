@@ -484,7 +484,7 @@ class MorseTrainer:
     window_height = 500
 
     # Amount of time to input the character before it's an error
-    time_to_guess_character = 1
+    time_to_guess_character = 1.5
 
     # The index of the character based on the number of times the player had
     # got it right consecutively.
